@@ -1,5 +1,11 @@
 from typing import Optional
 
+# Re-export `logger` so callers can do `from HitlerFactory import ..., logger`.
+# Matches main; `paper` branch had dropped this line, breaking every
+# simulator/players/* import (see hitler_player.py:5, basic_llm_player.py:5,
+# cpu_player.py:5). HitlerLogging.py has no reverse dependency on this file.
+from HitlerLogging import logger  # noqa: F401  (re-exported)
+
 LIBERAL_POLICIES = 6
 FASCIST_POLICIES = 11
 LIBERAL_POLICIES_TO_WIN = 5
