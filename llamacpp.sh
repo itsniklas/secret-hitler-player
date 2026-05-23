@@ -9,7 +9,7 @@ export MODEL=${MODEL:-/models/UD-IQ3_XXS/DeepSeek-R1-0528-UD-IQ3_XXS-00001-of-00
 export LLM_API_KEY=$LLM_API_KEY
 export LLM_BASE_URL=http://localhost:8080/v1/
 
-export SIF=/scratch-scc/projects/ag_gipp/llama-server.sif
+export SIF=$PROJECT/vllm-container/llama-server.sif
 
 module load gcc cuda apptainer
 mkdir -p logs

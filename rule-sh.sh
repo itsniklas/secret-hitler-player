@@ -5,7 +5,7 @@
 #SBATCH -c 12
 #SBATCH -N 1
 
-export HF_HOME=/scratch-scc/users/$USER/hf
+export HF_HOME=$PROJECT/hf
 
 source .venv/bin/activate
 
