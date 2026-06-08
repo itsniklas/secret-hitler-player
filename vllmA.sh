@@ -4,12 +4,12 @@ set -euo pipefail
 echo "[$(date +%F\ %T)] Job starting on $(hostname)"
 
 # Set these environment variables or add them to your .env file
-export HF_HOME=/scratch-scc/users/$USER/hf
+export HF_HOME=$PROJECT/hf
 export MODEL=${MODEL:-openai/gpt-oss-120b}
 export LLM_API_KEY=$LLM_API_KEY
 export LLM_BASE_URL=http://localhost:8080/v1/
 
-export SIF=/scratch-scc/projects/ag_gipp/vllm-latest.sif
+export SIF=$PROJECT/vllm-container/vllm-21.0.sif
 
 # export VLLM_USE_MODELSCOPE=true
 
