@@ -6,6 +6,20 @@ runs/
 runs*/
 slurm*
 output.txt
+
+# Local working notes — kept on disk but out of the published repository.
+/TASKS.md
+/REVIEWS.md
+/CLAUDE.md
+/RESULTS.md
+/RESULTS-*.md
+/README-TASK-*.md
+
+# Logo assets used by the plotting scripts (eval/plot_config.py references the
+# .png variants). Track these despite the global *.pdf / *.png ignores above —
+# eval/logos was previously a symlink into the author's local paper checkout,
+# which does not resolve on other machines.
+!eval/logos/**
 eval/runs*
 eval/token_stats*
 crawl/ann*
