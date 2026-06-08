@@ -33,6 +33,14 @@ class HitlerPlayer:
     # Configuration for batching behavior (class-level setting)
     enable_parallel_processing = True
 
+    # Generation knobs (class-level). Overridden from config at startup by
+    # HitlerGame's __main__; the defaults reproduce the original behaviour.
+    reasoning_enabled = True          # False => DeepSeek V3.1 thinking-OFF bundle
+    reasoning_effort = "low"          # reasoning effort when enabled: low|high
+    max_retries = 3                   # completion attempts before giving up
+    completion_max_tokens = 1024 * 4  # LLMPlayer base; scales x(attempt+1)
+    basic_max_tokens = 512            # BasicLLMPlayer base; scales x(attempt+1)
+
     def __init__(
         self,
         id: int,
@@ -193,44 +201,89 @@ class HitlerPlayer:
             {"role": "user", "content": prompt},
         ]
 
+        # Apply the loaded-terms theme to every text field (no-op when
+        # no theme is active). Walks msg in place via apply_to_messages.
+        from theme import apply_to_messages
+        msg = apply_to_messages(msg)
+
         # pretty print in debug mode
         if self.id == 0:
             logger.debug(f"Prompt for {self.name} at stage {_stage}:\n{static_system_content}\n\n{dynamic_system_content}\n\n{prompt}")
 
+        # vLLM 21.x routes Mistral models through a strict validator
+        # (vllm/tokenizers/mistral.py:validate_request_params) regardless of
+        # --tokenizer-mode. It rejects any chat_template* field, reasoning_effort
+        # not in {"none","high"} (we use "low"), and the OpenAI multi-part
+        # `content` format (typed-text chunks with cache_control for prefix
+        # caching). Mistral has no thinking mode, so strip the reasoning extras
+        # and flatten the system content to a plain string when serving it.
+        # Other non-thinking models (Gemma, Llama) tolerate the extras silently.
+        _model_lc = (openai_model or "").lower()
+        _is_mistral = "mistral" in _model_lc
+        if _is_mistral:
+            for _m in msg:
+                _c = _m.get("content")
+                if isinstance(_c, list):
+                    _m["content"] = "\n\n".join(
+                        part.get("text", "") for part in _c
+                        if isinstance(part, dict) and "text" in part
+                    )
+
+        # Reasoning bundle. Driven by the config knobs
+        # (generation.reasoning_*), resolved into class attributes at startup.
+        # Mistral (see above) gets no extras at all.
+        if _is_mistral:
+            _extra_body = {}
+        elif self.reasoning_enabled:
+            _extra_body = {
+                "reasoning_effort": self.reasoning_effort,
+                "reasoning": {"enabled": True, "effort": self.reasoning_effort},
+                "chat_template_kwargs": {"thinking": True},
+            }
+        else:
+            _extra_body = {
+                "reasoning_effort": "none",
+                "reasoning": {"enabled": False},
+                "chat_template_kwargs": {"thinking": False},
+            }
+
         content = None
-        for attempt in range(3):
+        for attempt in range(self.max_retries):
+            # On retry, nudge the model to be terser and bump max_tokens — the
+            # usual cause of content=None is reasoning tokens exhausting the
+            # budget before any visible answer is emitted. Append to the
+            # (already-themed) user message so the theme survives the retry.
+            attempt_msg = list(msg)
+            if attempt > 0:
+                attempt_msg[-1] = {
+                    "role": "user",
+                    "content": attempt_msg[-1]["content"]
+                    + "\n\nBe as brief as possible. Keep your answer short.",
+                }
+            mt = self.completion_max_tokens * (attempt + 1)  # e.g. 4096, 8192, 12288
             try:
                 response = self.openai_client.chat.completions.create(
                     model=openai_model,
-                    messages=msg,
-                    max_tokens=1024*4,
-                    extra_body={
-                        "reasoning_effort": "low",
-                        "reasoning": {
-                            "enabled": True,
-                            "effort": "low"
-                        },
-                        "chat_template_kwargs": {
-                            "thinking": True
-                        }
-                    }
+                    messages=attempt_msg,
+                    max_tokens=mt,
+                    extra_body=_extra_body,
                 )
             except Exception as e:
-                logger.warning(f"API error for {self.name} at stage {_stage} (attempt {attempt + 1}/3): {e}")
+                logger.warning(f"API error for {self.name} at stage {_stage} (attempt {attempt + 1}/{self.max_retries}): {e}")
                 import time
                 time.sleep(2 ** attempt)  # exponential backoff: 1s, 2s, 4s
                 continue
-            
+
             # Track token usage (without polluting game state)
             track_response(response, stage=_stage, player_name=self.name)
 
             content = response.choices[0].message.content
             if content is not None:
                 break
-            logger.warning(f"LLM response is None for {self.name} at stage {_stage} (attempt {attempt + 1}/3)")
+            logger.warning(f"LLM response is None for {self.name} at stage {_stage} (attempt {attempt + 1}/{self.max_retries})")
 
         if content is None:
-            logger.error(f"LLM response is None after 3 attempts for {self.name} at stage {_stage}, returning empty string.")
+            logger.error(f"LLM response is None after {self.max_retries} attempts for {self.name} at stage {_stage}, returning empty string.")
             content = ""
 
         self.inspection += f"{content}\n"

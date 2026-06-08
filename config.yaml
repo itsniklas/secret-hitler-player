@@ -19,6 +19,12 @@ game:
     - "CPU"
     - "CPU"
 
+  # Loaded-terms ablation. null/"original" = standard Secret Hitler
+  # terminology; "neutral" remaps Hitler/Fascist/Liberal/President/Chancellor to
+  # Saboteur/Reds/Blues/Speaker/Deputy.
+  theme: null
+  theme_strict: false           # true => raise on a forbidden-term leak instead of warning
+
 # ==============================================================================
 # LLM ENDPOINTS - SIMPLE CONFIGURATION
 # ==============================================================================
@@ -56,3 +62,14 @@ llm:
 processing:
   enable_parallel: true         # Enable parallel processing for batch games
   max_parallel_games: 4         # Maximum concurrent games
+
+# ==============================================================================
+# GENERATION OPTIONS (LLM call knobs)
+# ==============================================================================
+generation:
+  reasoning_enabled: true       # false => DeepSeek V3.1 thinking-OFF bundle
+                                #   (the REASONING_ENABLED env var still overrides this)
+  reasoning_effort: "low"       # reasoning effort when enabled: low | high
+  max_retries: 3                # completion attempts before giving up (returns "")
+  max_tokens: 4096              # LLMPlayer base budget; scales x(attempt+1) on retry
+  basic_max_tokens: 512         # BasicLLMPlayer base budget; scales x(attempt+1)

@@ -30,7 +30,24 @@ class Config:
         # Processing
         self.enable_parallel = True
         self.max_parallel_games = 4
-    
+
+        # Optional loaded-terms theme. Default None (= original
+        # Secret Hitler terminology); set to "neutral" to remap all loaded
+        # tokens to the Council / Reds / Blues / Speaker / Deputy theme.
+        self.theme = None
+        # When a theme is active, raise on a forbidden-token leak rather than
+        # just logging it (also settable via the THEME_STRICT env var).
+        self.theme_strict = False
+
+        # Generation knobs for the LLM call path. Configurable so reasoning
+        # on/off and retry tuning need no env vars or code edits. Defaults
+        # reproduce the original behaviour.
+        self.reasoning_enabled = True      # False => DeepSeek thinking-OFF bundle
+        self.reasoning_effort = "low"      # reasoning effort when enabled: low|high
+        self.max_retries = 3               # completion attempts before giving up
+        self.completion_max_tokens = 4096  # LLMPlayer base; scales x(attempt+1)
+        self.basic_max_tokens = 512        # BasicLLMPlayer base; scales x(attempt+1)
+
     @staticmethod
     def _expand_env_vars(value):
         """Expand environment variables in string values with support for ${VAR:-default} syntax."""
@@ -69,6 +86,8 @@ class Config:
             config.simple_mode = g.get('simple_mode', config.simple_mode)
             config.cutoff_rounds = g.get('cutoff_rounds', config.cutoff_rounds)
             config.player_types = g.get('player_types', config.player_types)
+            config.theme = g.get('theme', config.theme)
+            config.theme_strict = g.get('theme_strict', config.theme_strict)
         
         # Load LLM settings
         if 'llm' in data:
@@ -124,7 +143,16 @@ class Config:
             p = data['processing']
             config.enable_parallel = p.get('enable_parallel', config.enable_parallel)
             config.max_parallel_games = p.get('max_parallel_games', config.max_parallel_games)
-        
+
+        # Load generation settings (LLM call knobs)
+        if 'generation' in data:
+            gen = data['generation']
+            config.reasoning_enabled = gen.get('reasoning_enabled', config.reasoning_enabled)
+            config.reasoning_effort = gen.get('reasoning_effort', config.reasoning_effort)
+            config.max_retries = gen.get('max_retries', config.max_retries)
+            config.completion_max_tokens = gen.get('max_tokens', config.completion_max_tokens)
+            config.basic_max_tokens = gen.get('basic_max_tokens', config.basic_max_tokens)
+
         return config
     
     def get_llm_endpoint(self, player_type: str, player_index: int = 0) -> Tuple[str, str, str]:

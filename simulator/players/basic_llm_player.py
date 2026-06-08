@@ -54,23 +54,52 @@ Recent discussions:
 
 {prompt}"""
 
-        msg = [
+        base_msg = [
             {"role": "system", "content": system_content},
             {"role": "user", "content": full_prompt},
         ]
 
-        response = self.openai_client.chat.completions.create(
-            model=openai_model,
-            messages=msg,
-            max_tokens=512,  # Shorter responses
-            temperature=0.7,
-        )
-        
-        track_response(response, stage=_stage, player_name=self.name)
+        # Apply the loaded-terms theme (no-op when no theme is active).
+        from theme import apply_to_messages
+        base_msg = apply_to_messages(base_msg)
 
-        content = response.choices[0].message.content
+        content = None
+        for attempt in range(self.max_retries):
+            # On retry, nudge the model to be terser and give it more room — the
+            # usual cause of content=None is reasoning tokens exhausting
+            # max_tokens before any visible answer is emitted. Append to the
+            # (already-themed) user message so the theme survives the retry.
+            msg = list(base_msg)
+            if attempt > 0:
+                msg[-1] = {
+                    "role": "user",
+                    "content": msg[-1]["content"]
+                    + "\n\nBe as brief as possible. Answer in one short line.",
+                }
+            mt = self.basic_max_tokens * (attempt + 1)  # e.g. 512, 1024, 1536
+            try:
+                response = self.openai_client.chat.completions.create(
+                    model=openai_model,
+                    messages=msg,
+                    max_tokens=mt,
+                    temperature=0.7,
+                )
+            except Exception as e:
+                logger.warning(f"API error for {self.name} at stage {_stage} (attempt {attempt + 1}/{self.max_retries}): {e}")
+                import time
+                time.sleep(2 ** attempt)
+                continue
+
+            track_response(response, stage=_stage, player_name=self.name)
+
+            content = response.choices[0].message.content
+            if content is not None:
+                break
+            logger.warning(f"LLM response is None for {self.name} at stage {_stage} (attempt {attempt + 1}/{self.max_retries})")
+
         if content is None:
-            raise ValueError("LLM response is None.")
+            logger.error(f"LLM response is None after {self.max_retries} attempts for {self.name} at stage {_stage}, returning empty string.")
+            content = ""
 
         return content
 

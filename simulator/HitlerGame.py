@@ -1156,6 +1156,25 @@ if __name__ == "__main__":
     # Apply processing config
     HitlerPlayer.enable_parallel_processing = config.enable_parallel
 
+    # Apply loaded-terms theme (no-op when config.theme is None).
+    import theme as _theme_mod
+    _theme_mod.set_theme(getattr(config, "theme", None))
+    # Theme strictness from config, with THEME_STRICT=1 env override.
+    _theme_mod.THEME_STRICT = bool(getattr(config, "theme_strict", False)) or _theme_mod.THEME_STRICT
+    if _theme_mod.ACTIVE_THEME:
+        logger.info(f"[theme] active theme = {_theme_mod.ACTIVE_THEME} (strict={_theme_mod.THEME_STRICT})")
+
+    # Generation knobs (config-driven). REASONING_ENABLED env var still wins for
+    # backward compatibility with the reasoning-ablation launcher.
+    HitlerPlayer.reasoning_enabled = config.reasoning_enabled
+    _env_reason = os.environ.get("REASONING_ENABLED")
+    if _env_reason is not None:
+        HitlerPlayer.reasoning_enabled = _env_reason != "0"
+    HitlerPlayer.reasoning_effort = config.reasoning_effort
+    HitlerPlayer.max_retries = config.max_retries
+    HitlerPlayer.completion_max_tokens = config.completion_max_tokens
+    HitlerPlayer.basic_max_tokens = config.basic_max_tokens
+
     # Set the log level based on command line argument or config
     log_level = getattr(logging, args.log_level)
     set_log_level(log_level)
