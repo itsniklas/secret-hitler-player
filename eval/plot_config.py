@@ -155,6 +155,12 @@ MODEL_REGISTRY = {
         "logo": "llama.png",
         "marker": ("h", 7),
     },
+    "runsF2-LLAMA3370B": {
+        "name": "Llama 3.3 70B",
+        "color": "#bfbfbf",
+        "logo": "llama.png",
+        "marker": ("H", 7),
+    },
     "runsF2-MISTRALSMALL": {
         "name": "Mistral Small 24B",
         "color": "#fdb462",
@@ -258,6 +264,7 @@ PAPER_MODEL_ORDER = [
     "Mistral Small 24B",
     "GPT-OSS 120B",
     "OLMo 3.1 32B",
+    "Llama 3.3 70B",
     "Llama 3.1 70B",
     "Gemma 3 27B",
     "GPT-OSS 20B",
